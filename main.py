@@ -25,9 +25,9 @@ if model_type == "DPT_Large" or model_type == "DPT_Hybrid":
 else:
     transform = midas_transforms.small_transform
 
-def predict_depth(filename):
-    img = cv2.imread(filename)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+def predict_depth(img):
+    # img = cv2.imread(filename)
+    # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     # img = cv2.resize(img,(128,128))
 
 
@@ -54,13 +54,16 @@ def predict_depth(filename):
     return output
 
 def blur(filename, min_sigma=0.1, max_sigma=15.0, focus_level=0):
-    output = predict_depth(filename)
+    
 
     image = cv2.imread(filename)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = cv2.resize(image,(512,int(512 * image.shape[0] / image.shape[1])))
+
+    output = predict_depth(image)
 
     sq = int(np.sqrt(image.shape[0] * image.shape[1] / 250))
-    # image = cv2.resize(image,(128,128))
+    
 
     # Map depth to sigma values (tune these)
     # normalize (# 0 to 1.0 values, 0 is closest, 1.0 is farthest)
