@@ -53,20 +53,22 @@ def predict_depth(filename):
 
     return output
 
-def blur(filename, min_sigma=0.1, max_sigma=2.5):
+def blur(filename, min_sigma=0.1, max_sigma=15.0, focus_level=0):
     output = predict_depth(filename)
 
     image = cv2.imread(filename)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    sq = int(np.sqrt(image.shape[0] * image.shape[1] / 250))
     # image = cv2.resize(image,(128,128))
 
     # Map depth to sigma values (tune these)
     # normalize (# 0 to 1.0 values, 0 is closest, 1.0 is farthest)
     depth = 1.0 - (output - np.min(output)) / (np.max(output) - np.min(output)) 
-    sigma_map = min_sigma + depth * (max_sigma - min_sigma)
+    sigma_map = min_sigma + abs(depth - focus_level) * (max_sigma - min_sigma)
 
     # Step 1: Precompute blurred images for discrete sigma values
-    sigma_levels = np.linspace(min_sigma, max_sigma, 5)  # pick levels you want
+    sigma_levels = np.linspace(min_sigma, max_sigma, 7)  # pick levels you want
     blurred_levels = [cv2.GaussianBlur(image, (0, 0), s) for s in sigma_levels]
 
     # Step 2: For each pixel, pick the two closest sigma levels and interpolate
@@ -76,8 +78,27 @@ def blur(filename, min_sigma=0.1, max_sigma=2.5):
 
     for y in range(image.shape[0]):
         for x in range(image.shape[1]):
-            sigma_val = sigma_map[y, x]
+            # Define the window for averaging sigmas
+            y_start = max(0, y - sq // 2)
+            y_end = min(image.shape[0], y + sq // 2)
+            x_start = max(0, x - sq // 2)
+            x_end = min(image.shape[1], x + sq // 2)
 
+            # Get the window of depths and sigmas
+            depth_window = depth[y_start:y_end, x_start:x_end]
+            sigma_window = sigma_map[y_start:y_end, x_start:x_end]
+
+            # Get the current depth
+            current_depth = depth[y, x]
+
+            # Filter the window to include only pixels with higher depth
+            higher_depth_mask = depth_window <= current_depth
+
+            # Average the sigmas of these pixels
+            if np.any(higher_depth_mask):
+                sigma_val = np.mean(sigma_window[higher_depth_mask])
+            else:
+                sigma_val = sigma_map[y, x]
             # Find nearest two sigma levels
             idx = np.searchsorted(sigma_levels_arr, sigma_val)
             idx0 = max(0, idx - 1)
